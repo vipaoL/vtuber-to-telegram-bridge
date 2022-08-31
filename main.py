@@ -16,7 +16,7 @@ load_dotenv()
 
 tg_chat_id = os.getenv("TG_CHAT_ID")
 bot = telebot.TeleBot(os.getenv("BOT_TOKEN"))
-bot.send_message(tg_chat_id, "token loaded")
+send_text("token loaded")
 
 file = open("last_time", "r")
 
