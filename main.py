@@ -1,4 +1,5 @@
 from threading import Thread
+import time
 from time import sleep
 import pandas as pd
 import sqlite3
@@ -21,7 +22,7 @@ send_text("token loaded")
 file = open("last_time", "r")
 
 last_sent_time = int(file.read())
-send_text("looking for messages after " + str(last_sent_time))
+send_text("looking for messages after " + time.strftime("%a, %d %b %Y %H:%M:%S +0000", time.localtime(last_sent_time / 1000)))
 file.close()
 
 db_path = str(os.getenv("PATH_TO_DB"))
@@ -58,10 +59,11 @@ while True:
             chatId = df4.ChatID[i]
             for iteration in range(len(df3.ChatID)):
                 if df3.ChatID[iteration] == chatId:
+                    #print(time.strftime("%a, %d %b %Y %H:%M:%S +0000", time.localtime(df3.TimeStamp[iteration] / 1000)))
                     if last_sent_time < df3.TimeStamp[iteration]:
                         m_type = df3.MessageType[iteration]
                         last_sent_time = df3.TimeStamp[iteration]
-                        print(last_sent_time)
+                        print(last_sent_time, time.strftime("%a, %d %b %Y %H:%M:%S +0000", time.localtime(0)))
                         contact_id = int(df3.ContactID[iteration])
                         contact_name = 'who'
                         for j in range(len(contact)):
