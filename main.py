@@ -18,6 +18,9 @@ def find_viber_chat_id(chat_token):
         if chat_info_db.Token[i] == chat_token:
             viber_chat_id = chat_info_db.ChatID[i]
             print("chat found. id =", viber_chat_id, "token =", viber_chat_token)
+            chat_name = chat_info_db.Name[i]
+            if chat_name is not None:
+                send_text("<b>" + chat_name + "</b>")
             return viber_chat_id
     print("Can't find chat id by token", chat_token)
 
@@ -32,8 +35,10 @@ bot = telebot.TeleBot(os.getenv("BOT_TOKEN"))
 
 file = open("last_time", "r")
 last_sent_time = int(file.read())
-send_text("looking for messages after " + time.strftime("%a, %d %b %Y %H:%M:%S",
-                                                        time.localtime(last_sent_time / 1000)))
+send_text("<b>Starting...</b>")
+send_text("looking for messages after " +
+          time.strftime("%a, %d %b %Y %H:%M:%S",
+                        time.localtime(last_sent_time / 1000)))
 file.close()
 
 last_new_messages_check_time = 0
