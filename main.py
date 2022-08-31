@@ -6,6 +6,12 @@ import sqlite3
 import telebot
 from dotenv import load_dotenv
 import os
+
+
+def send_text(text):
+    bot.send_message(tg_chat_id, text, parse_mode="HTML")
+
+
 load_dotenv()
 
 tg_chat_id = os.getenv("TG_CHAT_ID")
@@ -15,7 +21,7 @@ bot.send_message(tg_chat_id, "token loaded")
 file = open("last_time", "r")
 
 last_sent_time = int(file.read())
-print("loading messages from", last_sent_time)
+send_text("looking for messages after " + str(last_sent_time))
 file.close()
 
 db_path = str(os.getenv("PATH_TO_DB"))
@@ -41,6 +47,7 @@ t1.start()
 
 print("polling started")
 '''
+send_text("bot started")
 while True:
     con = sqlite3.connect(db_path)
     df3 = pd.read_sql_query("SELECT * from MessageInfo", con)
@@ -61,12 +68,12 @@ while True:
                             id = contact.ContactID[j]
                             if id == contact_id:
                                 contact_name = contact.ClientName[j]
-                        message_text = contact_name + ":\n"
+                        message_text = "<b>" + contact_name + ":</b>\n"
                         if df3.Body[iteration] is not None:
                             message_text += df3.Body[iteration]
                         if m_type == 1:
                             if message_text is not None:
-                                bot.send_message(tg_chat_id, message_text)
+                                send_text(message_text)
                         elif m_type == 2:
                             '''
                             print(df3.PayloadPath[iteration])
@@ -82,10 +89,10 @@ while True:
                                 else:
                                     bot.send_photo(tg_chat_id, photo1)
                             else:
-                                bot.send_message(tg_chat_id, "загрузка фото...")
+                                send_text("loading picture from " + contact_name + "...")
                                 last_sent_time -= 1
                         if contact_id == 2:
-                            bot.send_message(tg_chat_id, "@vipaoL @vapoltavecs")
+                            send_text("@vipaoL @vapoltavecs")
                         file = open("last_time", "w")
                         file.write(str(last_sent_time))
                         file.close()
