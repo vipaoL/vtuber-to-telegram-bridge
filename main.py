@@ -1,6 +1,9 @@
+import json
 from threading import Thread
 import time
 from time import sleep
+from typing import Optional
+
 import pandas as pd
 import sqlite3
 
@@ -9,8 +12,37 @@ from dotenv import load_dotenv
 import os
 
 
-def send_text(text):
-    bot.send_message(tg_chat_id, text, parse_mode="HTML")
+def write_personal_setting(username, setting_name, value):
+    personal_settings = get_personal_settings_dictionary()
+    if username not in personal_settings:
+        personal_settings[username] = {'notifications': False}
+    personal_settings[username][setting_name] = value
+    with open('personal_settings.json', 'w') as f:
+        json.dump(personal_settings, f)
+        f.close()
+
+
+def get_personal_settings_dictionary():
+    f = open('personal_settings.json')
+    # returns JSON object as
+    # a dictionary
+    personal_settings = json.load(f)
+    # Closing file
+    f.close()
+    return personal_settings
+
+
+def get_usernames_string_for_notifications():
+    usernames = ''
+    personal_settings = get_personal_settings_dictionary()
+    for i in personal_settings:
+        if personal_settings[i]["notifications"]:
+            usernames += ' @' + str(i)
+    return usernames
+
+
+def send_text(text, disable_notification: Optional[bool] = True):
+    bot.send_message(tg_chat_id, text, parse_mode="HTML", disable_notification=disable_notification)
 
 
 def find_viber_chat_id(chat_token):
@@ -50,16 +82,38 @@ def get_text_messages(message):
     print("answer sent")
 bot.polling(none_stop=True, interval=0)
 '''
+
+
 class CmdListener(Thread):
     def run(self):
         @bot.message_handler(content_types=['text'])
         def get_text_messages(message):
             if (message.text == "/status") | (message.text == "/status@" + bot.get_me().username):
-                bot.send_message(message.chat.id, "last check was on " + time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime(last_new_messages_check_time)))
+                bot.send_message(message.chat.id, "last check was on " + time.strftime("%a, %d %b %Y %H:%M:%S",
+                                                                                       time.localtime(
+                                                                                           last_new_messages_check_time)))
+
+            elif (message.text == "/testnotification") | (message.text == "/testnotification@" + bot.get_me().username):
+                send_text(get_usernames_string_for_notifications())
+            elif (message.text == "/notifications") | (message.text == "/notifications@" + bot.get_me().username):
+                username = message.from_user.username
+                personal_settings = get_personal_settings_dictionary()
+                if username not in personal_settings:
+                    personal_settings[username] = {'notifications': False}
+                if personal_settings[username]["notifications"]:
+                    # if command called when already enabled, turn it off
+                    write_personal_setting(message.from_user.username, "notifications", False)
+                    send_text("you will <b>not</b> receive @ notifications")
+                else:
+                    write_personal_setting(message.from_user.username, "notifications", True)
+                    send_text("you <b>will</b> receive @ notifications")
+
         bot.polling(none_stop=True, interval=0)
+
 
 cmd_listener = CmdListener()
 cmd_listener.start()
+
 
 class Selftest(Thread):
     def run(self):
@@ -68,13 +122,15 @@ class Selftest(Thread):
             sleep(60)
             if time.time() - last_new_messages_check_time > 120:
                 send_text("<b>seems like the bridge stopped working! last checked new messages on " +
-                          time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime(last_new_messages_check_time)) + " " + os.getenv("ADMIN_USERNAME") + "</b>")
+                          time.strftime("%a, %d %b %Y %H:%M:%S",
+                                        time.localtime(last_new_messages_check_time)) + " " + os.getenv(
+                    "ADMIN_USERNAME") + "</b>")
+
 
 t2 = Selftest()
 t2.start()
 
 print("command listener started")
-
 
 viber_db_connection = sqlite3.connect(db_path)
 
@@ -98,6 +154,8 @@ while True:
                 message_text = "<b>" + contact_name + ":</b>\n"
                 if messages_info_db.Body[iteration] is not None:
                     message_text += messages_info_db.Body[iteration]
+                if contact_id == 2:
+                    message_text += "\n" + get_usernames_string_for_notifications()
                 if message_type == 1:
                     if message_text is not None:
                         send_text(message_text)
@@ -118,8 +176,6 @@ while True:
                     else:
                         send_text("loading picture from " + contact_name + "...")
                         last_sent_time -= 1
-                if contact_id == 2:
-                    send_text(os.getenv("ADMIN_USERNAME"))
                 file = open("last_time", "w")
                 file.write(str(last_sent_time))
                 file.close()
