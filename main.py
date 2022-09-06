@@ -11,6 +11,8 @@ import telebot
 from dotenv import load_dotenv
 import os
 
+debug = True
+
 
 def write_personal_setting(username, setting_name, value):
     personal_settings = get_personal_settings_dictionary()
@@ -40,7 +42,7 @@ def get_usernames_string_for_notifications():
         if personal_settings[i]["notifications"]:
             usernames += '@' + str(i) + " "
         usernames.strip()
-        usernames = "\n" + usernames
+    usernames = "\n" + usernames
     return usernames
 
 
@@ -57,7 +59,8 @@ def find_viber_chat_id(chat_token):
             print("viber chat found. id =", viber_chat_id, "token =", viber_chat_token)
             chat_name = chat_info_db.Name[i]
             if chat_name is not None:
-                send_text("| (viber) <b>" + chat_name + "</b>")
+                if debug:
+                    send_text("| (viber) <b>" + chat_name + "</b>")
             return viber_chat_id
     print("Can't find viber chat id by token", chat_token)
 
@@ -86,6 +89,8 @@ class CmdListener(Thread):
                 else:
                     write_personal_setting(message.from_user.username, "notifications", True)
                     send_text("You <b>will</b> receive @ notifications")
+            else:
+                print("unknown command:", message.text)
 
         while True:
             try:
@@ -98,19 +103,22 @@ class CmdListener(Thread):
 # will notify(@) the admin if there were no checks for new messages in last 120 seconds
 class SelfTest(Thread):
     def run(self):
-        send_text("| (viber) Bg self-test started")
+        if debug:
+            send_text("| (viber) Bg self-test started")
         while True:
             sleep(60)
             if time.time() - last_new_messages_check_time > 120:
-                send_text("<b>Seems like the viber bridge stopped working! Last checked for new messages on " +
-                          time.strftime("%a, %d %b %Y %H:%M:%S",
-                                        time.localtime(last_new_messages_check_time)) + " " + os.getenv(
-                    "ADMIN_USERNAME") + "</b>")
+                if debug:
+                    send_text("<b>Seems like the viber bridge stopped working! Last checked for new messages on " +
+                              time.strftime("%a, %d %b %Y %H:%M:%S",
+                                            time.localtime(last_new_messages_check_time)) + " " + os.getenv(
+                        "ADMIN_USERNAME") + "</b>")
 
 
 # bridge from another telegram group
 class TgToTg(Thread):
     def run(self):
+        last_message = None
         second_tg_chat_id = os.getenv("2ND_TG_CHAT_ID")
         second_bot = telebot.TeleBot(os.getenv("2ND_BOT_TOKEN"))
 
@@ -123,7 +131,14 @@ class TgToTg(Thread):
                 name += message.from_user.first_name
             if message.from_user.last_name is not None:
                 name += " " + message.from_user.last_name
-            name += ":</b>\n"
+            name += ":</b>"
+
+            if str(message.chat.id).startswith("-100"):
+                message_url = "https://t.me/c/" + str(message.chat.id).replace("-100", "") + "/" + str(message.id)
+                name = f"<a href=\"{message_url}\">" + name + "</a>"
+                print(message_url)
+
+            name += "\n"
 
             # check the message came from proper chat and user with specified id
             if (message.chat.id == int(second_tg_chat_id)) & (message.from_user.id == int(os.getenv("ID_TO_LISTEN"))):
@@ -131,6 +146,7 @@ class TgToTg(Thread):
                     text = name + message.text
                     if message.from_user.id == int(os.getenv("ID_TO_LISTEN")):
                         text += get_usernames_string_for_notifications()
+                    print(text)
                     send_text(text, False)
 
                 elif message.content_type == 'photo':
@@ -157,6 +173,16 @@ class TgToTg(Thread):
             try:
                 second_bot.polling(none_stop=True, interval=0)
             except Exception as e:
+                try:
+                    text = "error"
+                    if last_message is not None:
+                        if last_message.content_type == 'text':
+                            text = last_message.text
+                            text += "\nerror"
+                    send_text(text, False)
+                except Exception as ex:
+                    print('error sending error message')
+                    last_message = None
                 print(f'error with polling on the second bot. restarting\n {e}')
                 time.sleep(5)
 
@@ -172,10 +198,11 @@ bot = telebot.TeleBot(os.getenv("BOT_TOKEN"))
 file = open("last_time", "r")
 last_sent_time = int(file.read())
 file.close()
-send_text("<b>| Starting...</b>")
-send_text("| (viber) Looking for messages after " +
-          time.strftime("%a, %d %b %Y %H:%M:%S",
-                        time.localtime(last_sent_time / 1000)))
+if debug:
+    send_text("<b>| Starting...</b>")
+    send_text("| (viber) Looking for messages after " +
+              time.strftime("%a, %d %b %Y %H:%M:%S",
+                            time.localtime(last_sent_time / 1000)))
 
 # for self-test
 last_new_messages_check_time = 0
@@ -198,7 +225,8 @@ viber_chat_id = find_viber_chat_id(viber_chat_token)
 
 viber_db_connection.close()
 
-send_text("<b>| Bot started</b>")
+if debug:
+    send_text("<b>| Bot started</b>")
 # main cycle of checking for new messages in the database
 while True:
     viber_db_connection = sqlite3.connect(db_path)
